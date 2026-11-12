@@ -97,6 +97,7 @@ export default {
   load5m: '5 min',
   load15m: '15 min',
   adminLogin: 'Connexion admin',
+  accessLoginManaged: 'Connecté avec Cloudflare Access :',
   enterCredentials: 'Saisissez vos identifiants pour continuer',
   apiEndpoint: 'Point d’accès API',
   switchingSite: 'Changement de site...',

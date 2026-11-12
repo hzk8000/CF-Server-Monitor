@@ -97,6 +97,7 @@ export default {
   load5m: '5 分',
   load15m: '15 分',
   adminLogin: '管理者ログイン',
+  accessLoginManaged: 'Cloudflare Access でログイン済み：',
   enterCredentials: '続行するには認証情報を入力してください',
   apiEndpoint: 'API エンドポイント',
   switchingSite: 'サイトを切り替えています...',

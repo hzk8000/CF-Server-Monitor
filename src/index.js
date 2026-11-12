@@ -9,6 +9,7 @@ import { handleTheme } from './handlers/theme.js';
 import { isValidThemeOptions, loadSettings, loadSiteSettings, loadAppearanceOptions, normalizeFrontendWsTimeoutMinutes, normalizeLongHistoryPoints, saveThemeOptions, setDebug, debug } from './utils/settings.js';
 import { omitNullLossProbeFields } from './handlers/dashboard.js';
 import { checkAuth, simpleAuthResponse } from './middleware/auth.js';
+import { guardAccessRequest, isAccessAuthEnabled } from './middleware/cloudflareAccess.js';
 import { getServerDetail, getMetricsHistoryCache, setMetricsHistoryCache, getCacheDuration } from './utils/cache.js';
 import { AppError, createSuccessResponse, createUnauthorizedResponse, createBadRequestResponse, createNotFoundResponse, createErrorResponse } from './utils/errors.js';
 import { verifyTurnstileToken } from './utils/common.js';
@@ -189,6 +190,9 @@ export default {
     const method = request.method;
     const path = url.pathname;
 
+    const accessResponse = await guardAccessRequest(request, env);
+    if (accessResponse) return accessResponse;
+
     const corsAllowedOrigins = getCorsAllowedOrigins(env);
     
     if (!env.API_SECRET || env.API_SECRET.length === 0) {
@@ -241,7 +245,7 @@ export default {
     let setTurnstileVerified = false;
     let sys = null;
 
-    if (isApiRequest && !isTurnstileBypassed(path)) {
+    if (!isAccessAuthEnabled(env) && isApiRequest && !isTurnstileBypassed(path)) {
       sys = await loadSiteSettings(env.DB);
       const turnstileEnabled = sys.turnstile_enabled === 'true';
       const turnstileSecretKey = sys.turnstile_secret_key || '';
@@ -295,8 +299,9 @@ export default {
       { method: 'GET', path: '/api/config', handler: async () => {
         await ensureSiteSettings();
         const appearanceOptions = await loadAppearanceOptions(env.DB);
-        const turnstileEnabled = sys.turnstile_enabled === 'true';
-        const turnstileLoginEnabled = sys.turnstile_login_enabled === 'true';
+        const accessManaged = isAccessAuthEnabled(env);
+        const turnstileEnabled = !accessManaged && sys.turnstile_enabled === 'true';
+        const turnstileLoginEnabled = !accessManaged && sys.turnstile_login_enabled === 'true';
         let verified = false;
         let turnstileVerified = null;
 
@@ -319,8 +324,9 @@ export default {
             last_workers_version: remoteVersion?.workers || null,
             last_agent_version: remoteVersion?.agent || null
           } : {}),
-          is_public: sys.is_public === 'true',
+          is_public: !accessManaged && sys.is_public === 'true',
           authorization: isLoggedIn,
+          auth_mode: isAccessAuthEnabled(env) ? 'cloudflare-access' : 'password',
           turnstile_enabled: turnstileEnabled,
           turnstile_login_enabled: turnstileEnabled || turnstileLoginEnabled,
           turnstile_site_key: sys.turnstile_site_key || '',

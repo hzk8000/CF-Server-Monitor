@@ -155,6 +155,7 @@ async function fetchConfig() {
       verified,
       is_public: isPublic,
       authorization,
+      auth_mode: data.auth_mode || 'password',
       site_title: siteTitle,
       display_mode: displayMode,
       preferred_theme: preferredTheme,
@@ -323,6 +324,7 @@ async function initApp() {
         verified: sharedTurnstileSite ? enabledTurnstileSites.every(site => site.verified) : first.data.verified === true,
         is_public: !privateAccess.hasPrivateSite,
         authorization: !privateAccess.hasUnauthorizedPrivateSite,
+        auth_mode: first.data.auth_mode || 'password',
         site_title: first.data.site_title || '',
         display_mode: resolveDisplayMode(first.data),
         preferred_theme: ['dark', 'light', 'auto'].includes(String(first.data.preferred_theme || '').toLowerCase()) ? String(first.data.preferred_theme).toLowerCase() : 'auto',
@@ -346,6 +348,9 @@ async function initApp() {
   }
 
   applyDefaultTheme(config?.preferred_theme)
+  if (config?.auth_mode === 'cloudflare-access') {
+    localStorage.removeItem(STORAGE.JWT_TOKEN)
+  }
   await applyDefaultLanguage(config?.default_language)
   applyStartupThemeOptions(config)
 

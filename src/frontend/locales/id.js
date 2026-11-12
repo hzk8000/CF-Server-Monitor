@@ -97,6 +97,7 @@ export default {
   load5m: '5 Menit',
   load15m: '15 Menit',
   adminLogin: 'Login Admin',
+  accessLoginManaged: 'Masuk dengan Cloudflare Access:',
   enterCredentials: 'Masukkan kredensial Anda untuk melanjutkan',
   apiEndpoint: 'Endpoint API',
   switchingSite: 'Mengganti situs...',

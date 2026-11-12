@@ -1,4 +1,5 @@
 import { buildAuthCookie, buildClearAuthCookie, checkAuth, simpleAuthResponse, validateCredentials, generateToken } from '../middleware/auth.js';
+import { getAccessIdentity, isAccessAuthEnabled } from '../middleware/cloudflareAccess.js';
 import { getLatestMetricsForAllServers } from '../database/schema.js';
 import { getAllServers, clearServersListCache } from '../utils/cache.js';
 import { clearAppearanceSettingsCache, isValidThemeOptions, isWssReportConfigured, isWssReportEnabled, normalizeBooleanSetting, normalizeDefaultLanguage, normalizeDisplayMode, normalizeExpireNotificationTime, normalizeExpireReminder, normalizeFrontendWsTimeoutMinutes, normalizeLongHistoryPoints, normalizeNotificationLanguage, normalizeNotificationTemplate, normalizeNotificationTimezone, normalizeNotificationWebhookBody, normalizeNotificationWebhookFormat, normalizeNotificationWebhookHeaders, normalizeNotificationWebhookMethod, normalizePreferredTheme, normalizeResourceAlertRules, normalizeTgNotify, normalizeWssReportHours, saveSiteOptions, saveAppearanceOptions, saveThemeOptions, validateUserAgent, SITE_FIELDS, APPEARANCE_FIELDS, IMPORTABLE_SITE_FIELDS, IMPORTABLE_APPEARANCE_FIELDS, loadSiteSettings, loadAppearanceOptions } from '../utils/settings.js';
@@ -481,6 +482,12 @@ async function getD1DailyUsage(token, accountId) {
 }
 
 async function handleLoginAction({ request, env, sys, data }) {
+  if (isAccessAuthEnabled(env)) {
+    return new Response(JSON.stringify({ error: 'Password login is disabled', code: 403 }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
+    });
+  }
   const { username, password } = data;
 
   if (!username || !password) {
@@ -563,11 +570,22 @@ export function sanitizeAdminSettings(fullSettings = {}) {
   };
 }
 
-async function handleGetSettingsAction({ env, sys, loadFullSettings }) {
+async function handleGetSettingsAction({ request, env, sys, loadFullSettings }) {
   const fullSettings = loadFullSettings ? await loadFullSettings() : sys;
+  const identity = await getAccessIdentity(request, env);
   return createSuccessResponse({
     success: true,
-    settings: sanitizeAdminSettings(fullSettings),
+    settings: {
+      ...sanitizeAdminSettings(fullSettings),
+      ...(isAccessAuthEnabled(env) ? {
+        is_public: 'false',
+        turnstile_enabled: 'false',
+        turnstile_login_enabled: 'false',
+        password_configured: false
+      } : {}),
+      auth_mode: isAccessAuthEnabled(env) ? 'cloudflare-access' : 'password',
+      access_email: identity?.email || ''
+    },
     api_secret: env.API_SECRET
   });
 }
@@ -863,8 +881,16 @@ export async function handleAdminAPI(request, env, sys, loadFullSettings = null,
     }
 
     if (data.action === 'save_settings') {
-      const settings = data.settings || {};
-      if (!String(sys?.password || '').trim() && !String(settings.password || '')) {
+      const settings = { ...(data.settings || {}) };
+      if (isAccessAuthEnabled(env)) {
+        delete settings.username;
+        delete settings.password;
+        delete settings.jwt_secret;
+        settings.is_public = 'false';
+        settings.turnstile_enabled = 'false';
+        settings.turnstile_login_enabled = 'false';
+      }
+      if (!isAccessAuthEnabled(env) && !String(sys?.password || '').trim() && !String(settings.password || '')) {
         return createBadRequestResponse('passwordRequired');
       }
       const normalizedThemeUrl = normalizeThemeUrl(settings.theme_url);

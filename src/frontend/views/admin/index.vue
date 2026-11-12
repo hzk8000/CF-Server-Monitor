@@ -1302,6 +1302,10 @@ const logout = async () => {
   } catch (_) {
   }
   apiLogout()
+  if (appConfig?.auth_mode === 'cloudflare-access' || settings.value.auth_mode === 'cloudflare-access') {
+    window.location.assign('/cdn-cgi/access/logout')
+    return
+  }
   isLoggedIn.value = false
   latestAgentVersion.value = ''
   clearTurnstile()
@@ -1310,6 +1314,9 @@ const logout = async () => {
 }
 
 const checkLoginStatus = () => {
+  if (appConfig?.auth_mode === 'cloudflare-access') {
+    return appConfig.authorization === true
+  }
   const token = localStorage.getItem(STORAGE.JWT_TOKEN)
   return !!token || appConfig?.authorization === true
 }
@@ -1403,6 +1410,8 @@ const loadSettings = async () => {
       const data = result.data
       const settingsData = data.settings || {}
       settings.value = {
+        auth_mode: settingsData.auth_mode || appConfig?.auth_mode || 'password',
+        access_email: settingsData.access_email || '',
         site_title: settingsData.site_title || '',
         custom_bg: settingsData.custom_bg || '',
         custom_bg_mobile: settingsData.custom_bg_mobile || '',
@@ -1506,7 +1515,8 @@ const saveSettings = async () => {
     return
   }
 
-  if (!settings.value.username || settings.value.username.trim().length === 0) {
+  const accessManaged = settings.value.auth_mode === 'cloudflare-access'
+  if (!accessManaged && (!settings.value.username || settings.value.username.trim().length === 0)) {
     validationError.value = trans.value.usernameRequired
     return
   }
@@ -1532,12 +1542,12 @@ const saveSettings = async () => {
     return
   }
 
-  const shouldChangePassword = changeAdminPassword.value && (
+  const shouldChangePassword = !accessManaged && changeAdminPassword.value && (
     settings.value.password.length > 0 ||
     settings.value.confirm_password.length > 0
   )
 
-  if (!settings.value.password_configured && !shouldChangePassword) {
+  if (!accessManaged && !settings.value.password_configured && !shouldChangePassword) {
     changeAdminPassword.value = true
     validationError.value = trans.value.passwordRequired
     return

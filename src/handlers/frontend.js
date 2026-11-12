@@ -13,6 +13,7 @@ import {
   injectApiBase
 } from '../utils/csp.js';
 import { checkAuth } from '../middleware/auth.js';
+import { isAccessAuthEnabled } from '../middleware/cloudflareAccess.js';
 
 const IMMUTABLE_ASSET_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 const PREVIEW_COOKIE = 'cfsm_theme_preview';
@@ -276,6 +277,7 @@ function buildClearPreviewCookie(request) {
 }
 
 async function checkPreviewAuth(request, env, settings) {
+  if (isAccessAuthEnabled(env)) return checkAuth(request, env, settings);
   const token = getCookie(request, PREVIEW_AUTH_COOKIE);
   if (!token) return false;
 

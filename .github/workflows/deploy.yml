@@ -44,6 +44,9 @@ jobs:
       - name: 📦 Install dependencies
         run: npm install
 
+      - name: Verify Access authentication
+        run: npm run test:access
+
       - name: 🏗️ Build frontend assets
         run: npm run build:frontend
 
@@ -70,6 +73,7 @@ jobs:
           [assets]
           directory = "./dist"
           binding = "ASSETS"
+          run_worker_first = true
 
           [[d1_databases]]
           binding = "DB"
@@ -97,6 +101,35 @@ jobs:
 
           echo "✅ wrangler.toml 已生成"
 
+      - name: Configure authentication
+        env:
+          AUTH_MODE: ${{ vars.MONITOR_AUTH_MODE || 'password' }}
+          ACCESS_TEAM_DOMAIN: ${{ vars.ACCESS_TEAM_DOMAIN }}
+          ACCESS_AUD: ${{ vars.ACCESS_AUD }}
+          ACCESS_ALLOWED_EMAILS: ${{ secrets.ACCESS_ALLOWED_EMAILS }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+
+          mode = os.environ["AUTH_MODE"]
+          if mode not in ("password", "cloudflare-access"):
+              raise SystemExit("Invalid MONITOR_AUTH_MODE")
+          values = {"AUTH_MODE": mode}
+          if mode == "cloudflare-access":
+              for key in ("ACCESS_TEAM_DOMAIN", "ACCESS_AUD", "ACCESS_ALLOWED_EMAILS"):
+                  value = os.environ.get(key, "").strip()
+                  if not value:
+                      raise SystemExit(f"Missing {key}")
+                  if key != "ACCESS_ALLOWED_EMAILS":
+                      values[key] = value
+              values["ACCESS_HOSTNAME"] = "monitor.natlan.cc.cd"
+              values["AGENT_REPORT_HOSTNAMES"] = "server-monitor-pro.natlan-monitor.workers.dev"
+          with open("wrangler.toml", "a") as config:
+              for key, value in values.items():
+                  config.write(f"{key} = {json.dumps(value)}\n")
+          PY
+
       # wrangler v4 的 `deploy` 会自动根据 wrangler.toml 中的 [[durable_objects.bindings]]
       # 声明创建 DO namespace（幂等：已存在则跳过），无需单独命令。
       # 前提：MetricsBroadcaster 类必须从 index.js 导出（已通过 src/index.js 实现）。
@@ -109,8 +142,10 @@ jobs:
           command: deploy
           secrets: |
             API_SECRET
+            ${{ vars.MONITOR_AUTH_MODE == 'cloudflare-access' && 'ACCESS_ALLOWED_EMAILS' || '' }}
         env:
           API_SECRET: ${{ secrets.API_SECRET }}
+          ACCESS_ALLOWED_EMAILS: ${{ secrets.ACCESS_ALLOWED_EMAILS }}
 
       - name: ✅ Deployment Success
         if: success()

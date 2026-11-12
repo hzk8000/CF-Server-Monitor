@@ -168,7 +168,7 @@
 
         <div class="form-row">
           <div class="form-group flex-1 checkbox-item">
-            <input type="checkbox" id="cfg_is_public" v-model="settings.is_public">
+            <input type="checkbox" id="cfg_is_public" v-model="settings.is_public" :disabled="settings.auth_mode === 'cloudflare-access'">
             <label><b>{{ trans.publicAccess }}</b></label>
           </div>
 
@@ -624,6 +624,11 @@
       <div class="settings-section">
         <div class="section-title"><span>▸</span> {{ trans.securitySettings }}</div>
 
+        <p v-if="settings.auth_mode === 'cloudflare-access'" class="mb-3">
+          {{ trans.accessLoginManaged }} {{ settings.access_email }}
+        </p>
+
+        <template v-if="settings.auth_mode !== 'cloudflare-access'">
         <div class="form-row">
           <div class="form-group flex-1">
             <div class="checkbox-item">
@@ -659,9 +664,10 @@
             </div>
           </div>
         </div>
+        </template>
 
         <div class="form-row">
-          <div class="form-group flex-1">
+          <div v-if="settings.auth_mode !== 'cloudflare-access'" class="form-group flex-1">
             <label class="form-label">
               {{ trans.jwtSecret }}
               <HelpTooltip :text="trans.jwtSecretTip" />
@@ -734,7 +740,7 @@
 
       </div>
 
-      <div class="settings-section">
+      <div v-if="settings.auth_mode !== 'cloudflare-access'" class="settings-section">
         <div class="section-title"><span>▸</span> {{ trans.adminLoginSettings }}</div>
 
         <div class="form-group">

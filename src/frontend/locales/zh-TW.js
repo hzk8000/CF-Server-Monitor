@@ -98,6 +98,7 @@ export default {
   load5m: '5分鐘',
   load15m: '15分鐘',
   adminLogin: '管理員登入',
+  accessLoginManaged: '已透過 Cloudflare Access 登入：',
   enterCredentials: '輸入憑證以繼續',
   apiEndpoint: '站台',
   switchingSite: '正在切換站台...',

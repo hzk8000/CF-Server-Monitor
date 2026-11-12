@@ -1,6 +1,7 @@
 const ALGORITHM = { name: 'HMAC', hash: 'SHA-256' };
 import { verifyPasswordHash } from '../utils/common.js';
 import { isValidJwtSecret } from '../utils/settings.js';
+import { getAccessIdentity, isAccessAuthEnabled } from './cloudflareAccess.js';
 
 export const AUTH_COOKIE_NAME = 'cfsm_auth';
 const TOKEN_QUERY_KEYS = ['token', 'auth_token', 'ws_token'];
@@ -119,6 +120,9 @@ export async function generateToken(env, sys) {
 }
 
 export async function checkAuth(request, env, sys) {
+  if (isAccessAuthEnabled(env)) {
+    return Boolean(await getAccessIdentity(request, env));
+  }
   if (await verifyToken(extractBearerToken(request), env, sys)) {
     return true;
   }
@@ -126,6 +130,9 @@ export async function checkAuth(request, env, sys) {
 }
 
 export async function checkWebSocketAuth(request, env, sys) {
+  if (isAccessAuthEnabled(env)) {
+    return checkAuth(request, env, sys);
+  }
   if (await checkAuth(request, env, sys)) {
     return true;
   }
@@ -156,6 +163,9 @@ export function buildClearAuthCookie(request) {
 }
 
 export async function validateCredentials(username, password, env, sys) {
+  if (isAccessAuthEnabled(env)) {
+    return { valid: false, needsPasswordUpgrade: false };
+  }
   try {
     const validUsername = (sys && sys.username && sys.username.length > 0)
       ? sys.username
