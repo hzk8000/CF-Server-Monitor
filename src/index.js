@@ -462,6 +462,15 @@ export default {
       }
     }
 
+    // With run_worker_first, assets must be served explicitly after the guard.
+    // Preserve /assets/* for the theme proxy rather than the built-in bundle.
+    if ((method === 'GET' || method === 'HEAD') && env.ASSETS && !path.startsWith('/assets/')) {
+      const assetResponse = await env.ASSETS.fetch(request);
+      if (assetResponse.status !== 404) {
+        return applyCors(assetResponse, request, corsAllowedOrigins);
+      }
+    }
+
     const fullSettings = await loadSettings(env.DB);
     const frontendResponse = await serveFrontend(request, env, fullSettings);
     return applyCors(frontendResponse, request, corsAllowedOrigins);

@@ -121,11 +121,36 @@ test('email headers, Access cookies and legacy sessions cannot replace a verifie
 
 test('all anonymous browser routes are blocked before assets and database work', async () => {
   for (const path of ['/', '/admin', '/admin/api', '/api/config', '/api/servers',
-    '/api/history/all?id=server-1', '/api/ws', '/assets/app.js', '/theme', '/__do/health']) {
+    '/api/history/all?id=server-1', '/api/ws', '/assets/app.js', '/static/index.js',
+    '/files/logo.svg', '/theme', '/__do/health']) {
     const response = await worker.fetch(request(path), env(), {});
     assert.equal(response.status, 403, path);
     assert.equal(response.headers.get('Cache-Control'), 'no-store');
   }
+});
+
+test('Worker-first routing serves real static assets only after Access authentication', async () => {
+  const paths = [];
+  const assets = {
+    async fetch(req) {
+      paths.push(new URL(req.url).pathname);
+      return new Response('export const loaded = true;', {
+        headers: { 'Content-Type': 'application/javascript' }
+      });
+    }
+  };
+  const bindings = env({ ASSETS: assets });
+  const denied = await worker.fetch(request('/static/app.js'), bindings, {});
+  assert.equal(denied.status, 403);
+  assert.equal(paths.length, 0);
+  const response = await worker.fetch(request('/static/app.js', { token: await sign() }), bindings, {});
+  assert.equal(response.headers.get('Content-Type'), 'application/javascript');
+  assert.equal(await response.text(), 'export const loaded = true;');
+  assert.deepEqual(paths, ['/static/app.js']);
+  const passwordResponse = await worker.fetch(request('/static/app.js'), {
+    AUTH_MODE: 'password', API_SECRET: 'test-agent-secret', ASSETS: assets
+  }, {});
+  assert.equal(passwordResponse.headers.get('Content-Type'), 'application/javascript');
 });
 
 test('the backup host exposes only POST /update and still checks the agent secret', async () => {
